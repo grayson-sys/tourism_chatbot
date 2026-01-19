@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+jinja2
+openai
+faiss-cpu
+requests
+beautifulsoup4
+lxml
+pyyaml
+geoip2
+numpy
+pytest

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ingest Status - New Mexico True Concierge</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="logo">New Mexico True Concierge</div>
+      <div class="header-placeholder">Admin view</div>
+    </header>
+
+    <main class="privacy">
+      <h1>Ingestion status</h1>
+      <p>Overview of indexed content.</p>
+      {% if latest_run %}
+      <div class="ingest-run">
+        <h2>Latest ingest run</h2>
+        <p>Status: {{ latest_run["status"] }}</p>
+        <p>Started: {{ latest_run["started_at"] }}</p>
+        <p>Finished: {{ latest_run["finished_at"] or "In progress" }}</p>
+        <p>Pages crawled: {{ latest_run["pages_crawled"] }}</p>
+        <p>Documents seen: {{ latest_run["documents_seen"] }}</p>
+        <p>Chunks embedded: {{ latest_run["chunks_embedded"] }}</p>
+        {% if latest_run["stats_json"] %}
+        <pre>{{ latest_run["stats_json"] }}</pre>
+        {% endif %}
+        {% if latest_run["error"] %}
+        <p class="error">{{ latest_run["error"] }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+      <table>
+        <tr>
+          <th>Documents</th>
+          <td>{{ documents }}</td>
+        </tr>
+        <tr>
+          <th>Chunks</th>
+          <td>{{ chunks }}</td>
+        </tr>
+        <tr>
+          <th>Latest update</th>
+          <td>{{ latest_update or "None" }}</td>
+        </tr>
+      </table>
+    </main>
+  </body>
+</html>

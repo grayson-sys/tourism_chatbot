@@ -1,0 +1,5 @@
+# Add URL substrings to allow crawling specific areas. Leave empty to allow all.
+- "newmexico.org/new-mexico-true-certified"
+- "newmexico.org/new-mexico-true-certified/true-certified-shopping"
+- "newmexico.org/new-mexico-true-certified/true-certified-visitor-experiences"
+- "newmexicomagazine.org/"

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Mexico True Concierge</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="logo">New Mexico True Concierge</div>
+      <div class="header-placeholder">Header space reserved for NewMexico.org chrome</div>
+    </header>
+
+    <main class="layout single">
+      <section class="chat-panel">
+        <div class="chat-header">
+          <h1>Ask the TRUE travel concierge</h1>
+        </div>
+
+        <div id="chat-window" class="chat-window"></div>
+
+        <form id="chat-form" class="chat-form" onsubmit="return false;">
+          <textarea
+            id="chat-input"
+            name="message"
+            rows="2"
+            placeholder="Ask about activities, lodging, food, or shopping and we'll research New Mexico Magazine's archives for you."
+          ></textarea>
+          <button type="button" id="chat-submit">Ask concierge</button>
+        </form>
+        <div id="chat-status" class="chat-status" aria-live="polite"></div>
+
+        <div class="disclaimer">
+          Recommendations are sourced from New Mexico Magazine and New Mexico True Certified partners.
+        </div>
+
+        <div class="recent-queries">
+          <h2>ONLY FOR DEV: Here's what people are asking...</h2>
+          <ul>
+            {% for row in recent_queries %}
+            <li>
+              <span class="query-time">{{ row["created_at"] }}</span>
+              <span class="query-text">{{ row["message"] }}</span>
+            </li>
+            {% else %}
+            <li>No queries yet.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/chat.js"></script>
+  </body>
+</html>
