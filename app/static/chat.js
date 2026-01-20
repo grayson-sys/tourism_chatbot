@@ -75,7 +75,8 @@ function addMessage(text, className) {
 }
 
 async function streamChat(payload, assistantEl) {
-  const response = await fetch("/api/chat", {
+  const basePath = document.body?.dataset?.basePath || "";
+  const response = await fetch(`${basePath}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -115,7 +116,7 @@ async function streamChat(payload, assistantEl) {
   );
   if (sourceUrls.length) {
     try {
-      const resp = await fetch("/api/source-images", {
+      const resp = await fetch(`${basePath}/api/source-images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls: sourceUrls }),
