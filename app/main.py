@@ -44,7 +44,8 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 root_path = os.getenv("ROOT_PATH", "")
-app = FastAPI(lifespan=lifespan, root_path=root_path)
+use_lifespan = os.getenv("WSGI_DISABLE_LIFESPAN") != "1"
+app = FastAPI(lifespan=lifespan if use_lifespan else None, root_path=root_path)
 init_db()
 templates = Jinja2Templates(directory=str(settings.project_root / "app" / "templates"))
 app.mount("/static", StaticFiles(directory=str(settings.project_root / "app" / "static")), name="static")
