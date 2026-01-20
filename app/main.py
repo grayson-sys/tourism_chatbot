@@ -1,5 +1,6 @@
 import json
 import time
+import os
 from functools import lru_cache
 from typing import Any, Iterable
 import re
@@ -218,7 +219,12 @@ def _approx_tokens(text: str) -> int:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    recent = recent_queries(10)
+    recent = []
+    if os.getenv("SHOW_RECENT_QUERIES") == "1":
+        try:
+            recent = recent_queries(10)
+        except Exception:
+            recent = []
     return templates.TemplateResponse(
         "index.html",
         {
