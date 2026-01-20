@@ -1,17 +1,13 @@
 import json
-import time
 import os
+import re
+import threading
+import time
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Any, Iterable
-import re
 
-from contextlib import asynccontextmanager
-
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from flask import Flask, Response, abort, jsonify, render_template, request, stream_with_context
 from openai import OpenAI
 
 from app.db import (
@@ -34,7 +30,7 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: Flask):
     init_db()
     yield
     reader = _get_geo_reader()
@@ -43,37 +39,41 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
-root_path = os.getenv("ROOT_PATH", "")
-use_lifespan = os.getenv("WSGI_DISABLE_LIFESPAN") != "1"
-app = FastAPI(lifespan=lifespan if use_lifespan else None, root_path=root_path)
 init_db()
-templates = Jinja2Templates(directory=str(settings.project_root / "app" / "templates"))
-app.mount("/static", StaticFiles(directory=str(settings.project_root / "app" / "static")), name="static")
+app = Flask(
+    __name__,
+    static_folder=str(settings.project_root / "app" / "static"),
+    template_folder=str(settings.project_root / "app" / "templates"),
+)
 
-if settings.allowed_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_origins,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-    )
+
+@app.after_request
+def add_cors_headers(response):
+    if settings.allowed_origins:
+        origin = request.headers.get("Origin")
+        if origin and origin in settings.allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 
 def get_openai_client() -> OpenAI:
     if not settings.openai_api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY missing")
+        abort(500, "OPENAI_API_KEY missing")
     return OpenAI(api_key=settings.openai_api_key)
 
 
-def _get_client_ip(request: Request) -> str | None:
+def _get_client_ip() -> str | None:
     xff = request.headers.get("x-forwarded-for")
     if xff:
         return xff.split(",")[0].strip()
     xri = request.headers.get("x-real-ip")
     if xri:
         return xri.strip()
-    if request.client:
-        return request.client.host
+    if request.remote_addr:
+        return request.remote_addr
     return None
 
 
@@ -218,76 +218,69 @@ def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def _require_admin() -> None:
+    token = request.headers.get("authorization") or request.args.get("token")
+    if not settings.admin_token:
+        abort(500, "ADMIN_TOKEN missing")
+    if token == settings.admin_token:
+        return
+    if token == f"Bearer {settings.admin_token}":
+        return
+    abort(403, "forbidden")
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request) -> HTMLResponse:
+
+@app.get("/")
+def index() -> str:
     recent = []
     if os.getenv("SHOW_RECENT_QUERIES") == "1":
         try:
             recent = recent_queries(10)
         except Exception:
             recent = []
-    return templates.TemplateResponse(
+    return render_template(
         "index.html",
-        {
-            "request": request,
-            "default_days": 7,
-            "recent_queries": recent,
-        },
+        default_days=7,
+        recent_queries=recent,
     )
 
 
-@app.get("/privacy", response_class=HTMLResponse)
-async def privacy(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("privacy.html", {"request": request})
+@app.get("/privacy")
+def privacy() -> str:
+    return render_template("privacy.html")
 
 
-@app.get("/healthz", response_class=PlainTextResponse)
-async def healthz() -> PlainTextResponse:
-    return PlainTextResponse("ok")
+@app.get("/healthz")
+def healthz() -> Response:
+    return Response("ok", mimetype="text/plain")
 
 
-def _require_admin(request: Request) -> None:
-    token = request.headers.get("authorization") or request.query_params.get("token")
-    if not settings.admin_token:
-        raise HTTPException(status_code=500, detail="ADMIN_TOKEN missing")
-    if token == settings.admin_token:
-        return
-    if token == f"Bearer {settings.admin_token}":
-        return
-    raise HTTPException(status_code=403, detail="forbidden")
-
-
-@app.get("/admin/ingest", response_class=HTMLResponse)
-async def ingest_status(request: Request) -> HTMLResponse:
-    _require_admin(request)
+@app.get("/admin/ingest")
+def ingest_status() -> str:
+    _require_admin()
     with get_conn() as conn:
         docs = conn.execute("SELECT COUNT(*) AS count FROM documents").fetchone()["count"]
         chunks = conn.execute("SELECT COUNT(*) AS count FROM chunks").fetchone()["count"]
         updated = conn.execute("SELECT MAX(updated_at) AS latest FROM documents").fetchone()["latest"]
     latest_run = latest_ingest_run()
-    return templates.TemplateResponse(
+    return render_template(
         "ingest_status.html",
-        {
-            "request": request,
-            "documents": docs,
-            "chunks": chunks,
-            "latest_update": updated,
-            "latest_run": latest_run,
-        },
+        documents=docs,
+        chunks=chunks,
+        latest_update=updated,
+        latest_run=latest_run,
     )
 
 
 @app.post("/api/chat")
-async def chat(request: Request) -> StreamingResponse:
-    payload = await request.json()
+def chat() -> Response:
+    payload = request.get_json(silent=True) or {}
     message = (payload.get("message") or "").strip()
     if not message:
-        raise HTTPException(status_code=400, detail="message is required")
+        abort(400, "message is required")
     if _detect_illegal_request(message):
         response_text = _illegal_response()
         latency_ms = 0
-        ip = _get_client_ip(request)
+        ip = _get_client_ip()
         city, region, country = _geo_from_ip(ip)
         insert_chat_event(
             client_city=city,
@@ -302,7 +295,7 @@ async def chat(request: Request) -> StreamingResponse:
             input_tokens=_approx_tokens(message),
             output_tokens=_approx_tokens(response_text),
         )
-        return StreamingResponse(iter([response_text]), media_type="text/plain")
+        return Response(response_text, mimetype="text/plain")
 
     trip_length_days = int(payload.get("trip_length_days") or 0) or _extract_trip_length(message)
     assumed_long_weekend = False
@@ -347,7 +340,7 @@ async def chat(request: Request) -> StreamingResponse:
         finally:
             latency_ms = int((time.perf_counter() - start) * 1000)
             output_tokens = _approx_tokens("".join(full_text))
-            ip = _get_client_ip(request)
+            ip = _get_client_ip()
             city, region, country = _geo_from_ip(ip)
             insert_chat_event(
                 client_city=city,
@@ -363,7 +356,7 @@ async def chat(request: Request) -> StreamingResponse:
                 output_tokens=output_tokens,
             )
 
-    return StreamingResponse(event_stream(), media_type="text/plain")
+    return Response(stream_with_context(event_stream()), mimetype="text/plain")
 
 
 def _run_ingest(run_id: int, seeds: list[str]) -> None:
@@ -375,23 +368,24 @@ def _run_ingest(run_id: int, seeds: list[str]) -> None:
 
 
 @app.post("/api/ingest")
-async def ingest(request: Request, background_tasks: BackgroundTasks) -> dict[str, Any]:
-    _require_admin(request)
-    payload = await request.json()
+def ingest() -> Response:
+    _require_admin()
+    payload = request.get_json(silent=True) or {}
     seeds = payload.get("seeds") or DEFAULT_SEEDS
     run_id = create_ingest_run()
-    background_tasks.add_task(_run_ingest, run_id, seeds)
-    return {"status": "queued", "run_id": run_id}
+    thread = threading.Thread(target=_run_ingest, args=(run_id, seeds), daemon=True)
+    thread.start()
+    return jsonify({"status": "queued", "run_id": run_id})
 
 
 @app.post("/api/source-images")
-async def source_images(request: Request) -> dict[str, Any]:
-    payload = await request.json()
+def source_images() -> Response:
+    payload = request.get_json(silent=True) or {}
     urls = payload.get("urls") or []
     if not isinstance(urls, list):
-        raise HTTPException(status_code=400, detail="urls must be a list")
+        abort(400, "urls must be a list")
     if not urls:
-        return {"images": []}
+        return jsonify({"images": []})
     with get_conn() as conn:
         rows = conn.execute(
             """
@@ -406,4 +400,4 @@ async def source_images(request: Request) -> dict[str, Any]:
         for row in rows
         if row["image_url"]
     ]
-    return {"images": images}
+    return jsonify({"images": images})

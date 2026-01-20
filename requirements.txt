@@ -1,5 +1,4 @@
-fastapi
-uvicorn
+flask
 jinja2
 openai
 faiss-cpu
