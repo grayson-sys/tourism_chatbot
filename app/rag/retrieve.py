@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import numpy as np
 from openai import OpenAI
 
 from app.db import get_conn
 from app.settings import get_settings
-
-try:
-    import faiss
-except Exception:  # pragma: no cover - optional dependency at runtime
-    faiss = None
 
 
 SHOPPING_TERMS = {
@@ -40,6 +34,13 @@ def _query_needs_nmtc(query: str) -> bool:
 
 
 def retrieve_chunks(query: str, top_k: int = 8) -> list[dict[str, str]]:
+    try:
+        import faiss
+    except Exception:  # pragma: no cover - optional dependency at runtime
+        faiss = None
+
+    import numpy as np
+
     settings = get_settings()
     if not settings.faiss_index_path.exists() or faiss is None:
         return []
