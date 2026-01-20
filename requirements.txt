@@ -10,3 +10,4 @@ pyyaml
 geoip2
 numpy
 pytest
+asgiref
