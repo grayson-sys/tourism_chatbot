@@ -15,6 +15,8 @@ from app.settings import get_settings
 
 DEFAULT_SEEDS = [
     "https://www.newmexicomagazine.org/archive/",
+    "https://www.newmexicomagazine.org/",
+    "https://www.newmexico.org/",
     "https://www.newmexico.org/new-mexico-true-certified/",
     "https://www.newmexico.org/new-mexico-true-certified/true-certified-shopping/",
     "https://www.newmexico.org/new-mexico-true-certified/true-certified-visitor-experiences/",
@@ -68,10 +70,35 @@ def ingest_urls(seeds: list[str], run_id: int | None = None) -> dict[str, int]:
             image_url = doc.get("image_url")
 
             existing = conn.execute(
-                "SELECT id, content_hash FROM documents WHERE url = ?", (url,)
+                "SELECT id, content_hash, published_date, image_url FROM documents WHERE url = ?", (url,)
             ).fetchone()
 
             if existing and existing["content_hash"] == content_hash:
+                needs_meta_update = False
+                updated_fields = {
+                    "published_date": existing["published_date"],
+                    "image_url": existing["image_url"],
+                }
+                if published_date and not existing["published_date"]:
+                    updated_fields["published_date"] = published_date
+                    needs_meta_update = True
+                if image_url and not existing["image_url"]:
+                    updated_fields["image_url"] = image_url
+                    needs_meta_update = True
+                if needs_meta_update:
+                    conn.execute(
+                        """
+                        UPDATE documents
+                        SET published_date = ?, image_url = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            updated_fields["published_date"],
+                            updated_fields["image_url"],
+                            datetime.utcnow().isoformat(),
+                            existing["id"],
+                        ),
+                    )
                 if run_id:
                     update_ingest_progress(
                         run_id,

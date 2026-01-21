@@ -68,6 +68,7 @@ function formatItinerary(text) {
 function addMessage(text, className) {
   const div = document.createElement("div");
   div.className = className;
+  chatWindow.classList.remove("is-empty");
   div.textContent = text;
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;

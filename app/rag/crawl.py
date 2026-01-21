@@ -34,7 +34,7 @@ def _is_candidate_url(url: str) -> bool:
     url_lower = url.lower()
     if "newmexicomagazine.org" in url_lower:
         return True
-    if "newmexico.org" in url_lower and "new-mexico-true-certified" in url_lower:
+    if "newmexico.org" in url_lower:
         return True
     return False
 
@@ -105,6 +105,18 @@ def _extract_date(soup: BeautifulSoup) -> str | None:
     meta = soup.find("meta", {"name": "pubdate"})
     if meta and meta.get("content"):
         return meta["content"]
+    meta = soup.find("meta", {"name": "date"})
+    if meta and meta.get("content"):
+        return meta["content"]
+    meta = soup.find("meta", {"name": "dc.date"})
+    if meta and meta.get("content"):
+        return meta["content"]
+    meta = soup.find("meta", {"name": "dc.date.issued"})
+    if meta and meta.get("content"):
+        return meta["content"]
+    time_tag = soup.find("time")
+    if time_tag and time_tag.get("datetime"):
+        return time_tag["datetime"]
     return None
 
 
@@ -175,7 +187,7 @@ def crawl(
 
         now = time.time()
         last = last_request.get(parsed.netloc, 0)
-        if parsed.netloc.endswith("newmexico.org") and now - last < rate_limit_seconds:
+        if parsed.netloc.endswith(("newmexico.org", "newmexicomagazine.org")) and now - last < rate_limit_seconds:
             time.sleep(rate_limit_seconds - (now - last))
         last_request[parsed.netloc] = time.time()
 

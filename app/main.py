@@ -131,6 +131,7 @@ def _build_system_prompt(trip_length_days: int | None, assumed_long_weekend: boo
         "- Include relevant source links at the end of each paragraph when making specific recommendations.\n"
         "- When sources are available, prefer specific businesses, hotels, restaurants, and attractions from those sources over general advice.\n"
         "- Only include a specific recommendation if it is supported by a source URL; otherwise say sources were limited and ask one clarifying question.\n"
+        "- Prefer more recent sources when available; mention dates when provided in sources.\n"
         "- Always add a short reminder to check with businesses and events directly because archives can be out of date.\n"
         "- If retrieval is weak, say so plainly, ask at most one clarifying question, and still produce a best-effort itinerary with general region-based guidance.\n"
         "- Prefer New Mexico True Certified vendors for shopping and experiences when relevant.\n\n"
@@ -205,6 +206,7 @@ def _build_user_payload(message: str, metadata: dict[str, Any], sources: list[di
                 "source_type": source["source_type"],
                 "excerpt": source["chunk_text"],
                 "image_url": source.get("image_url"),
+                "published_date": source.get("published_date"),
             }
             for idx, source in enumerate(sources)
         ],
@@ -232,11 +234,10 @@ def _require_admin() -> None:
 @app.get("/")
 def index() -> str:
     recent = []
-    if os.getenv("SHOW_RECENT_QUERIES") == "1":
-        try:
-            recent = recent_queries(10)
-        except Exception:
-            recent = []
+    try:
+        recent = recent_queries(10)
+    except Exception:
+        recent = []
     return render_template(
         "index.html",
         default_days=7,
