@@ -48,10 +48,10 @@ def url_bucket(url: str) -> str:
 
 
 def open_db(db_path: Path) -> sqlite3.Connection:
-    uri = f"file:{db_path}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
+    conn = sqlite3.connect(db_path, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA query_only=ON")
     return conn
 
 
