@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from openai import OpenAI
 
-from app.db import get_conn, update_ingest_progress
+from app.db import get_conn, init_db, update_ingest_progress
 from app.rag.chunk import chunk_text
 from app.rag.crawl import CrawlStats, crawl, load_yaml_list
 from app.rag.index_faiss import add_vectors, load_or_create, save_index
@@ -55,6 +55,7 @@ def ingest_urls(
     per_host_cap: int | None = None,
     logger: logging.Logger | None = None,
 ) -> dict[str, int | dict[str, int]]:
+    init_db()
     settings = get_settings()
     allowlist = load_yaml_list(settings.project_root / "config" / "urls_allowlist.yaml")
     denylist = load_yaml_list(settings.project_root / "config" / "urls_denylist.yaml")
