@@ -357,7 +357,11 @@ def chat() -> Response:
                 output_tokens=output_tokens,
             )
 
-    return Response(stream_with_context(event_stream()), mimetype="text/plain")
+    stream_response = Response(stream_with_context(event_stream()), mimetype="text/plain")
+    stream_response.headers["Cache-Control"] = "no-cache"
+    stream_response.headers["X-Accel-Buffering"] = "no"
+    stream_response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return stream_response
 
 
 def _run_ingest(run_id: int, seeds: list[str]) -> None:
