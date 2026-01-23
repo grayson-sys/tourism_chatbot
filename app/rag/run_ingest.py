@@ -34,6 +34,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--log-file", default="ingest.log")
     parser.add_argument("--log-every", type=int, default=25)
     parser.add_argument("--per-host-cap", type=int, default=None)
+    parser.add_argument("--commit-every", type=int, default=50)
     parser.add_argument("--smoke", action="store_true", help="Fetch only 5 pages and exit.")
     parser.add_argument("--seed", action="append", dest="seeds", default=None)
     return parser.parse_args()
@@ -70,6 +71,7 @@ def main() -> int:
         rate_limit_seconds=args.rate_limit,
         log_every=args.log_every,
         per_host_cap=args.per_host_cap,
+        commit_every=args.commit_every,
         logger=logging.getLogger("ingest"),
     )
     print(f"INGEST DONE {json.dumps(stats, ensure_ascii=True)}", flush=True)

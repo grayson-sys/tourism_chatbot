@@ -53,6 +53,7 @@ def ingest_urls(
     rate_limit_seconds: float | None = None,
     log_every: int = 25,
     per_host_cap: int | None = None,
+    commit_every: int = 50,
     logger: logging.Logger | None = None,
 ) -> dict[str, int | dict[str, int]]:
     init_db()
@@ -94,6 +95,8 @@ def ingest_urls(
         )
 
     with get_conn() as conn:
+        logger.info("DB PATH %s", settings.db_path)
+        processed_since_commit = 0
         for doc in crawl(
             seeds,
             allowlist,
@@ -160,6 +163,10 @@ def ingest_urls(
                             chunks_embedded=inserted_chunks,
                         )
                     pages_ingested += 1
+                    processed_since_commit += 1
+                    if processed_since_commit >= commit_every:
+                        conn.commit()
+                        processed_since_commit = 0
                     log_heartbeat(doc)
                     continue
 
@@ -225,6 +232,10 @@ def ingest_urls(
             chunks = chunk_text(content_text)
             if not chunks:
                 pages_ingested += 1
+                processed_since_commit += 1
+                if processed_since_commit >= commit_every:
+                    conn.commit()
+                    processed_since_commit = 0
                 log_heartbeat(doc)
                 continue
 
@@ -274,6 +285,10 @@ def ingest_urls(
                 continue
 
             pages_ingested += 1
+            processed_since_commit += 1
+            if processed_since_commit >= commit_every:
+                conn.commit()
+                processed_since_commit = 0
             log_heartbeat(doc)
             if run_id:
                 update_ingest_progress(
@@ -282,6 +297,8 @@ def ingest_urls(
                     documents_seen=documents_seen,
                     chunks_embedded=inserted_chunks,
                 )
+        if processed_since_commit:
+            conn.commit()
 
     return {
         "documents_inserted": inserted_docs,
