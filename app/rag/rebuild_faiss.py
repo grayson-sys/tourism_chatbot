@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from openai import OpenAI
+from openai import RateLimitError
 
 from app.rag.index_faiss import add_vectors, save_index
 from app.settings import get_settings
@@ -85,10 +86,21 @@ def main() -> int:
             if not batch:
                 return
             embed_start = time.time()
-            embeddings = client.embeddings.create(
-                model=settings.openai_embed_model,
-                input=batch,
-            )
+            while True:
+                try:
+                    embeddings = client.embeddings.create(
+                        model=settings.openai_embed_model,
+                        input=batch,
+                    )
+                    break
+                except RateLimitError as exc:
+                    wait_s = 3
+                    try:
+                        wait_s = max(wait_s, int(exc.response.headers.get("retry-after", "3")))
+                    except Exception:
+                        pass
+                    print(f"RATE LIMIT: sleeping {wait_s}s", flush=True)
+                    time.sleep(wait_s)
             vectors = np.array([item.embedding for item in embeddings.data]).astype("float32")
             ids = np.array(batch_ids, dtype="int64")
 
